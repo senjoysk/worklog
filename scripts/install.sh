@@ -34,19 +34,23 @@ fi
 echo "launchd設定をインストール中..."
 cp "$PROJECT_DIR/launchd/com.user.worklog.plist" "$LAUNCH_AGENTS_DIR/"
 cp "$PROJECT_DIR/launchd/com.user.worklog.daily.plist" "$LAUNCH_AGENTS_DIR/"
+cp "$PROJECT_DIR/launchd/com.user.worklog.menubar.plist" "$LAUNCH_AGENTS_DIR/"
 
 # 5. launchdに登録
 echo "サービスを起動中..."
 launchctl unload "$LAUNCH_AGENTS_DIR/com.user.worklog.plist" 2>/dev/null || true
 launchctl unload "$LAUNCH_AGENTS_DIR/com.user.worklog.daily.plist" 2>/dev/null || true
+launchctl unload "$LAUNCH_AGENTS_DIR/com.user.worklog.menubar.plist" 2>/dev/null || true
 launchctl load "$LAUNCH_AGENTS_DIR/com.user.worklog.plist"
 launchctl load "$LAUNCH_AGENTS_DIR/com.user.worklog.daily.plist"
+launchctl load "$LAUNCH_AGENTS_DIR/com.user.worklog.menubar.plist"
 
 echo ""
 echo "=== インストール完了 ==="
 echo ""
 echo "worklogは毎分実行されます。"
 echo "日報は毎日 00:05 に生成されます。"
+echo "メニューバーアプリが起動しました。"
 echo ""
 echo "ログファイル:"
 echo "  $PROJECT_DIR/logs/"

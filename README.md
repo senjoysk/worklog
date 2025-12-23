@@ -14,6 +14,11 @@ macOSで作業ログを自動記録し、LLMで日報を生成するツール。
   - Vertex AI Gemini 2.5 Flash による解析
   - Markdown 形式で保存
 
+- **メニューバーアプリ**: サービスの状態管理
+  - メニューバーにアイコン表示（●実行中 / ○停止中）
+  - キャプチャ・日報生成サービスの停止/再開
+  - ログイン時に自動起動
+
 ## セットアップ
 
 ### 1. GCP認証情報の準備
@@ -58,12 +63,13 @@ GEMINI_MODEL=gemini-2.5-flash-preview-05-20
 ```bash
 # 依存関係のインストール
 pip3 install -r requirements.txt
-pip3 install pyinstaller
+pip3 install pyinstaller rumps
 
 # バイナリをビルド
 swiftc -O -o dist/ocr_tool src/ocr_tool.swift
 pyinstaller --onefile --name worklog --distpath dist --workpath build --specpath build --paths src --hidden-import window_info src/main.py
 pyinstaller --onefile --name worklog-daily --distpath dist --workpath build --specpath build src/daily_report.py
+pyinstaller --onefile --windowed --name worklog-menubar --distpath dist --workpath build --specpath build src/menubar_app.py
 ```
 
 ### 4. インストール
@@ -139,11 +145,13 @@ worklog/
 ├── src/
 │   ├── main.py           # キャプチャスクリプト（ソース）
 │   ├── daily_report.py   # 日報生成スクリプト（ソース）
+│   ├── menubar_app.py    # メニューバーアプリ（ソース）
 │   ├── window_info.py    # ウィンドウ情報取得
 │   └── ocr_tool.swift    # Vision Framework OCR（ソース）
 ├── dist/                 # ビルド成果物（Git管理外）
 │   ├── worklog           # キャプチャ用バイナリ
 │   ├── worklog-daily     # 日報生成用バイナリ
+│   ├── worklog-menubar.app  # メニューバーアプリ
 │   └── ocr_tool          # OCR用バイナリ
 ├── logs/
 │   └── YYYY-MM-DD.jsonl  # 日付ごとのログ
@@ -151,7 +159,8 @@ worklog/
 │   └── YYYY-MM-DD.md     # 生成された日報
 ├── launchd/
 │   ├── com.user.worklog.plist        # 毎分実行用
-│   └── com.user.worklog.daily.plist  # 日次実行用
+│   ├── com.user.worklog.daily.plist  # 日次実行用
+│   └── com.user.worklog.menubar.plist  # メニューバーアプリ自動起動用
 ├── scripts/
 │   ├── install.sh
 │   └── uninstall.sh

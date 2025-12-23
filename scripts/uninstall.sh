@@ -11,11 +11,13 @@ echo "=== worklog アンインストール ==="
 echo "サービスを停止中..."
 launchctl unload "$LAUNCH_AGENTS_DIR/com.user.worklog.plist" 2>/dev/null || true
 launchctl unload "$LAUNCH_AGENTS_DIR/com.user.worklog.daily.plist" 2>/dev/null || true
+launchctl unload "$LAUNCH_AGENTS_DIR/com.user.worklog.menubar.plist" 2>/dev/null || true
 
 # 2. plistファイルを削除
 echo "設定ファイルを削除中..."
 rm -f "$LAUNCH_AGENTS_DIR/com.user.worklog.plist"
 rm -f "$LAUNCH_AGENTS_DIR/com.user.worklog.daily.plist"
+rm -f "$LAUNCH_AGENTS_DIR/com.user.worklog.menubar.plist"
 
 echo ""
 echo "=== アンインストール完了 ==="
