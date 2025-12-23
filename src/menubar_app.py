@@ -5,7 +5,9 @@ worklog - メニューバーアプリ
 """
 
 import os
+import sys
 import subprocess
+from pathlib import Path
 
 import rumps
 
@@ -14,6 +16,28 @@ SERVICES = {
     "capture": "com.user.worklog",
     "daily": "com.user.worklog.daily",
 }
+
+
+def get_project_root() -> Path:
+    """プロジェクトルートを取得"""
+    if 'WORKLOG_ROOT' in os.environ:
+        return Path(os.environ['WORKLOG_ROOT'])
+    if getattr(sys, 'frozen', False):
+        # .app bundle: /path/to/dist/worklog-menubar.app/Contents/MacOS/worklog-menubar
+        # → dist の親がプロジェクトルート
+        exe_path = Path(sys.executable)
+        if '.app' in str(exe_path):
+            # .app/Contents/MacOS/binary → .app → dist → project_root
+            for parent in exe_path.parents:
+                if parent.suffix == '.app':
+                    return parent.parent.parent
+        return exe_path.parent.parent
+    return Path(__file__).parent.parent
+
+
+PROJECT_ROOT = get_project_root()
+LOGS_DIR = PROJECT_ROOT / 'logs'
+REPORTS_DIR = PROJECT_ROOT / 'reports'
 
 
 class WorklogMenubarApp(rumps.App):
@@ -32,6 +56,9 @@ class WorklogMenubarApp(rumps.App):
             None,  # セパレータ
             self.daily_status,
             self.daily_toggle,
+            None,
+            rumps.MenuItem("Open Logs", callback=self.open_logs),
+            rumps.MenuItem("Open Reports", callback=self.open_reports),
             None,
         ]
 
@@ -78,6 +105,14 @@ class WorklogMenubarApp(rumps.App):
         else:
             subprocess.run(["launchctl", "load", plist])
         self.update_status(None)
+
+    def open_logs(self, _):
+        """ログフォルダをFinderで開く"""
+        subprocess.run(["open", str(LOGS_DIR)])
+
+    def open_reports(self, _):
+        """日報フォルダをFinderで開く"""
+        subprocess.run(["open", str(REPORTS_DIR)])
 
 
 if __name__ == "__main__":
