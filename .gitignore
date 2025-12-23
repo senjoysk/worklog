@@ -1,0 +1,23 @@
+# 環境変数
+.env
+
+# ログファイル
+logs/
+reports/
+tmp/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# macOS
+.DS_Store
+
+# ビルド成果物
+dist/
+build/
+*.spec
