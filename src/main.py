@@ -39,6 +39,81 @@ OCR_TOOL = PROJECT_ROOT / 'dist' / 'ocr_tool'  # コンパイル済みバイナ�
 # OCRテキストの最大長（JSONLが肥大化しないように）
 MAX_OCR_TEXT_LENGTH = 5000
 
+# アイドル時間の閾値（秒）- この時間以上操作がなければスキップ
+IDLE_THRESHOLD_SECONDS = 300  # 5分
+
+
+def get_idle_time_seconds() -> float:
+    """
+    macOSのアイドル時間（最後のユーザー入力からの経過秒数）を取得
+    ioregを使用してHIDIdleTimeを取得
+    """
+    try:
+        result = subprocess.run(
+            ['ioreg', '-c', 'IOHIDSystem', '-d', '4'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            for line in result.stdout.split('\n'):
+                if 'HIDIdleTime' in line:
+                    # "HIDIdleTime" = 1234567890 (ナノ秒)
+                    parts = line.split('=')
+                    if len(parts) >= 2:
+                        # 数値部分を抽出
+                        value_str = parts[1].strip()
+                        # 数字以外の文字を除去
+                        value_str = ''.join(c for c in value_str if c.isdigit())
+                        if value_str:
+                            idle_ns = int(value_str)
+                            return idle_ns / 1_000_000_000  # ナノ秒→秒
+    except Exception as e:
+        print(f"Warning: Could not get idle time: {e}")
+    return 0
+
+
+def is_screen_locked() -> bool:
+    """
+    画面がロックされているかを検出
+    CGSessionCopyCurrentDictionaryを使用
+    """
+    try:
+        # Quartz経由で画面ロック状態を確認
+        result = subprocess.run(
+            ['python3', '-c', '''
+import Quartz
+d = Quartz.CGSessionCopyCurrentDictionary()
+if d:
+    print("locked" if d.get("CGSSessionScreenIsLocked", False) else "unlocked")
+else:
+    print("unknown")
+'''],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        return 'locked' in result.stdout
+    except Exception:
+        return False
+
+
+def should_skip_capture() -> tuple[bool, str]:
+    """
+    キャプチャをスキップすべきかを判定
+    戻り値: (スキップするか, 理由)
+    """
+    # 画面ロック状態をチェック
+    if is_screen_locked():
+        return True, "screen_locked"
+
+    # アイドル時間をチェック
+    idle_seconds = get_idle_time_seconds()
+    if idle_seconds > IDLE_THRESHOLD_SECONDS:
+        return True, f"idle_{int(idle_seconds)}s"
+
+    return False, ""
+
 
 def ensure_directories():
     """必要なディレクトリを作成"""
@@ -122,6 +197,12 @@ def main():
 
     # ディレクトリ準備
     ensure_directories()
+
+    # アイドル/ロック状態をチェック
+    skip, reason = should_skip_capture()
+    if skip:
+        print(f"[{datetime.now().isoformat()}] Skipping capture: {reason}")
+        return 0
 
     # 1. アクティブウィンドウ情報を取得
     window_info = get_active_window_info()
