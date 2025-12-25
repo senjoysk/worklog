@@ -256,41 +256,14 @@ def main():
         report = generate_report_with_llm(summary, target_date)
     except Exception as e:
         print(f"Error generating report: {e}")
-        # フォールバック: 簡易レポートを生成
-        report = create_fallback_report(analysis, target_date)
+        print("Skipping report generation (LLM unavailable)")
+        return 1
 
     # 保存
     save_report(report, target_date)
 
     print("Done!")
     return 0
-
-
-def create_fallback_report(analysis: dict, date: str) -> str:
-    """LLMが使えない場合の簡易レポート"""
-    lines = [f"# {date} 日報\n"]
-    lines.append("*自動生成（LLM使用不可のためシンプル版）*\n")
-
-    lines.append("## 使用アプリ")
-    app_usage = analysis.get('app_usage', {})
-    sorted_apps = sorted(app_usage.items(), key=lambda x: x[1], reverse=True)
-
-    lines.append("| アプリ名 | 使用時間 |")
-    lines.append("|---------|---------|")
-    for app, minutes in sorted_apps[:10]:
-        hours = minutes // 60
-        mins = minutes % 60
-        if hours > 0:
-            lines.append(f"| {app} | {hours}時間{mins}分 |")
-        else:
-            lines.append(f"| {app} | {mins}分 |")
-
-    lines.append(f"\n## 記録情報")
-    lines.append(f"- 開始: {analysis.get('first_entry', 'N/A')}")
-    lines.append(f"- 終了: {analysis.get('last_entry', 'N/A')}")
-    lines.append(f"- 総記録数: {analysis.get('total_entries', 0)}件")
-
-    return '\n'.join(lines)
 
 
 if __name__ == '__main__':

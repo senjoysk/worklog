@@ -7,9 +7,12 @@ worklog - メニューバーアプリ
 import os
 import sys
 import subprocess
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import rumps
+from Foundation import NSObject, NSWorkspace, NSNotificationCenter
+from Cocoa import NSWorkspaceDidWakeNotification
 
 PLIST_DIR = os.path.expanduser("~/Library/LaunchAgents")
 SERVICES = {
@@ -38,6 +41,35 @@ def get_project_root() -> Path:
 PROJECT_ROOT = get_project_root()
 LOGS_DIR = PROJECT_ROOT / 'logs'
 REPORTS_DIR = PROJECT_ROOT / 'reports'
+DAILY_BINARY = PROJECT_ROOT / 'dist' / 'worklog-daily'
+
+
+def needs_daily_report(target_date: str) -> bool:
+    """指定日の日報生成が必要かチェック"""
+    report_file = REPORTS_DIR / f'{target_date}.md'
+    return not report_file.exists()
+
+
+def has_log_for_date(target_date: str) -> bool:
+    """指定日のログファイルが存在するかチェック"""
+    log_file = LOGS_DIR / f'{target_date}.jsonl'
+    return log_file.exists()
+
+
+class WakeObserver(NSObject):
+    """スリープ復帰を監視するオブザーバー"""
+
+    def initWithCallback_(self, callback):
+        self = super().init()
+        if self is None:
+            return None
+        self.callback = callback
+        return self
+
+    def handleWake_(self, notification):
+        """スリープから復帰したときに呼ばれる"""
+        if self.callback:
+            self.callback()
 
 
 class WorklogMenubarApp(rumps.App):
@@ -65,6 +97,65 @@ class WorklogMenubarApp(rumps.App):
         # 5秒ごとに状態チェック
         rumps.Timer(self.update_status, 5).start()
         self.update_status(None)
+
+        # スリープ復帰監視を設定
+        self._setup_wake_observer()
+
+        # 起動時にも日報チェック（スリープ中に起動しなかった場合の対応）
+        self._check_and_generate_daily_report()
+
+    def _setup_wake_observer(self):
+        """スリープ復帰の監視を設定"""
+        self.wake_observer = WakeObserver.alloc().initWithCallback_(
+            self._on_wake_from_sleep
+        )
+        workspace = NSWorkspace.sharedWorkspace()
+        nc = workspace.notificationCenter()
+        nc.addObserver_selector_name_object_(
+            self.wake_observer,
+            "handleWake:",
+            NSWorkspaceDidWakeNotification,
+            None
+        )
+
+    def _on_wake_from_sleep(self):
+        """スリープから復帰したときの処理"""
+        # 少し待ってからチェック（ネットワーク接続の安定を待つ）
+        rumps.Timer(self._check_and_generate_daily_report, 30).start()
+
+    def _check_and_generate_daily_report(self, _=None):
+        """前日の日報が必要なら生成する"""
+        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+
+        # ログがなければスキップ
+        if not has_log_for_date(yesterday):
+            return
+
+        # 日報が必要かチェック
+        if not needs_daily_report(yesterday):
+            return
+
+        # 日報生成を実行
+        self._run_daily_report(yesterday)
+
+    def _run_daily_report(self, target_date: str):
+        """日報生成を実行"""
+        if not DAILY_BINARY.exists():
+            print(f"Daily binary not found: {DAILY_BINARY}")
+            return
+
+        try:
+            env = os.environ.copy()
+            env['WORKLOG_ROOT'] = str(PROJECT_ROOT)
+            subprocess.Popen(
+                [str(DAILY_BINARY), target_date],
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            print(f"Started daily report generation for {target_date}")
+        except Exception as e:
+            print(f"Failed to start daily report: {e}")
 
     def is_running(self, service_id: str) -> bool:
         """サービスが実行中かどうかを確認"""
