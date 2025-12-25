@@ -19,6 +19,10 @@ pyinstaller --onefile --name worklog --distpath dist --workpath build --specpath
 pyinstaller --onefile --name worklog-daily --distpath dist --workpath build --specpath build src/daily_report.py
 pyinstaller --onefile --windowed --name worklog-menubar --distpath dist --workpath build --specpath build src/menubar_app.py
 
+# 画面収録権限が維持されるよう固定識別子で署名（重要）
+codesign --force --sign - --identifier "com.user.worklog" dist/worklog
+codesign --force --sign - --identifier "com.user.worklog.ocr" dist/ocr_tool
+
 # インストール/アンインストール
 ./scripts/install.sh
 ./scripts/uninstall.sh
