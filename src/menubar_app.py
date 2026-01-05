@@ -10,6 +10,7 @@ import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import objc
 import rumps
 from Foundation import NSObject, NSWorkspace, NSNotificationCenter
 from Cocoa import NSWorkspaceDidWakeNotification
@@ -60,7 +61,7 @@ class WakeObserver(NSObject):
     """スリープ復帰を監視するオブザーバー"""
 
     def initWithCallback_(self, callback):
-        self = super().init()
+        self = objc.super(WakeObserver, self).init()
         if self is None:
             return None
         self.callback = callback
@@ -101,6 +102,9 @@ class WorklogMenubarApp(rumps.App):
         # スリープ復帰監視を設定
         self._setup_wake_observer()
 
+        # 5分ごとに日報チェック（スリープ復帰後の確実な実行のため）
+        rumps.Timer(self._check_and_generate_daily_report, 300).start()
+
         # 起動時にも日報チェック（スリープ中に起動しなかった場合の対応）
         self._check_and_generate_daily_report()
 
@@ -124,19 +128,21 @@ class WorklogMenubarApp(rumps.App):
         rumps.Timer(self._check_and_generate_daily_report, 30).start()
 
     def _check_and_generate_daily_report(self, _=None):
-        """前日の日報が必要なら生成する"""
-        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        """欠けている日報があれば生成する（過去10日分をチェック）"""
+        today = datetime.now().date()
 
-        # ログがなければスキップ
-        if not has_log_for_date(yesterday):
+        for i in range(1, 11):  # 1〜10日前
+            target = (today - timedelta(days=i)).strftime('%Y-%m-%d')
+
+            if not has_log_for_date(target):
+                continue
+
+            if not needs_daily_report(target):
+                continue
+
+            # 日報生成を実行（1回に1つだけ、API負荷軽減）
+            self._run_daily_report(target)
             return
-
-        # 日報が必要かチェック
-        if not needs_daily_report(yesterday):
-            return
-
-        # 日報生成を実行
-        self._run_daily_report(yesterday)
 
     def _run_daily_report(self, target_date: str):
         """日報生成を実行"""
