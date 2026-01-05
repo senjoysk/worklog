@@ -9,10 +9,13 @@ macOSで作業ログを自動記録し、LLMで日報を生成するツール。
   - アクティブディスプレイのスクリーンショット
   - Vision Framework による OCR テキスト抽出
   - JSONL 形式でログ保存
+  - **アイドル検出**: 5分以上操作がない場合は自動スキップ
+  - **画面ロック検出**: ロック中は自動スキップ
 
 - **日次実行**: 前日のログから日報を自動生成
   - Vertex AI Gemini 2.5 Flash による解析
   - Markdown 形式で保存
+  - 作業ごとの合計時間を集計
 
 - **メニューバーアプリ**: サービスの状態管理
   - メニューバーにアイコン表示（●実行中 / ○停止中）
@@ -65,12 +68,28 @@ GEMINI_MODEL=gemini-2.5-flash-preview-05-20
 pip3 install -r requirements.txt
 pip3 install pyinstaller rumps
 
-# バイナリをビルド
+# ビルドスクリプトで全バイナリをビルド
+./scripts/build.sh
+```
+
+<details>
+<summary>手動でビルドする場合</summary>
+
+```bash
+# Swiftバイナリをビルド
 swiftc -O -o dist/ocr_tool src/ocr_tool.swift
+
+# Pythonバイナリをビルド
 pyinstaller --onefile --name worklog --distpath dist --workpath build --specpath build --paths src --hidden-import window_info src/main.py
 pyinstaller --onefile --name worklog-daily --distpath dist --workpath build --specpath build src/daily_report.py
 pyinstaller --onefile --windowed --name worklog-menubar --distpath dist --workpath build --specpath build src/menubar_app.py
+
+# コード署名（画面収録権限維持のため）
+codesign --force --sign - --identifier "com.user.worklog" dist/worklog
+codesign --force --sign - --identifier "com.user.worklog.ocr" dist/ocr_tool
 ```
+
+</details>
 
 ### 4. インストール
 
@@ -99,6 +118,9 @@ chmod +x scripts/install.sh scripts/uninstall.sh
 
 # 特定日付の日報を生成
 ./dist/worklog-daily 2025-01-15
+
+# 日報を再生成（スクリプト使用）
+./scripts/regenerate-report.sh 2025-01-15
 ```
 
 ### サービスの管理
@@ -110,13 +132,18 @@ launchctl list | grep worklog
 # 最初の列: PID（待機中は -）
 # 2番目の列: 終了コード（0=正常）
 
-# 停止
+# 全サービスを再起動（スクリプト使用）
+./scripts/restart.sh
+
+# 手動で停止
 launchctl unload ~/Library/LaunchAgents/com.user.worklog.plist
 launchctl unload ~/Library/LaunchAgents/com.user.worklog.daily.plist
+launchctl unload ~/Library/LaunchAgents/com.user.worklog.menubar.plist
 
-# 再開
+# 手動で再開
 launchctl load ~/Library/LaunchAgents/com.user.worklog.plist
 launchctl load ~/Library/LaunchAgents/com.user.worklog.daily.plist
+launchctl load ~/Library/LaunchAgents/com.user.worklog.menubar.plist
 ```
 
 ### ログの確認
@@ -157,13 +184,17 @@ worklog/
 │   └── YYYY-MM-DD.jsonl  # 日付ごとのログ
 ├── reports/
 │   └── YYYY-MM-DD.md     # 生成された日報
+├── tmp/                  # 一時ファイル（スクリーンショット等）
 ├── launchd/
 │   ├── com.user.worklog.plist        # 毎分実行用
 │   ├── com.user.worklog.daily.plist  # 日次実行用
 │   └── com.user.worklog.menubar.plist  # メニューバーアプリ自動起動用
 ├── scripts/
-│   ├── install.sh
-│   └── uninstall.sh
+│   ├── build.sh          # 全バイナリのビルド
+│   ├── install.sh        # インストール
+│   ├── uninstall.sh      # アンインストール
+│   ├── restart.sh        # サービス再起動
+│   └── regenerate-report.sh  # 日報再生成
 ├── .env                  # 環境変数（Git管理外）
 ├── .env.example
 └── requirements.txt
@@ -181,8 +212,9 @@ worklog/
 # 2025-01-15 日報
 
 ## 作業内容
-- 09:00-12:00: worklogプロジェクトの開発
-- 13:00-15:00: ドキュメント作成
+（作業ごとに合計時間を記載）
+- worklogプロジェクトの開発 (3h)
+- ドキュメント作成 (2h)
 
 ## 使用アプリ
 | アプリ名 | 使用時間 | 主な用途 |

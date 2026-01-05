@@ -13,19 +13,18 @@ macOSで作業ログを自動記録し、Vertex AI Geminiで日報を生成す�
 pip3 install -r requirements.txt
 pip3 install pyinstaller rumps
 
-# 全バイナリをビルド
-swiftc -O -o dist/ocr_tool src/ocr_tool.swift
-pyinstaller --onefile --name worklog --distpath dist --workpath build --specpath build --paths src --hidden-import window_info src/main.py
-pyinstaller --onefile --name worklog-daily --distpath dist --workpath build --specpath build src/daily_report.py
-pyinstaller --onefile --windowed --name worklog-menubar --distpath dist --workpath build --specpath build src/menubar_app.py
-
-# 画面収録権限が維持されるよう固定識別子で署名（重要）
-codesign --force --sign - --identifier "com.user.worklog" dist/worklog
-codesign --force --sign - --identifier "com.user.worklog.ocr" dist/ocr_tool
+# 全バイナリをビルド（推奨）
+./scripts/build.sh
 
 # インストール/アンインストール
 ./scripts/install.sh
 ./scripts/uninstall.sh
+
+# サービス再起動
+./scripts/restart.sh
+
+# 日報再生成
+./scripts/regenerate-report.sh 2025-01-15
 ```
 
 ## Manual Execution
@@ -44,7 +43,8 @@ open dist/worklog-menubar.app
 ## Architecture
 
 ### データフロー
-1. **main.py** (毎分実行): ウィンドウ情報取得 → スクリーンショット → OCR → JSONL保存
+1. **main.py** (毎分実行): アイドル/ロック検出 → ウィンドウ情報取得 → スクリーンショット → OCR → JSONL保存
+   - 5分以上アイドル or 画面ロック中はスキップ
 2. **daily_report.py** (日次実行): JSONL読み込み → 解析 → Gemini API → Markdown保存
 3. **menubar_app.py**: launchdサービスの状態監視・制御UI
 
@@ -73,6 +73,10 @@ menubar_app.py
 - `com.user.worklog` - 毎分実行（StartInterval: 60）
 - `com.user.worklog.daily` - 毎日00:05実行（StartCalendarInterval）
 - `com.user.worklog.menubar` - ログイン時起動（RunAtLoad）
+
+## 設定値（main.py）
+- `IDLE_THRESHOLD_SECONDS = 300` - アイドル検出閾値（5分）
+- `MAX_OCR_TEXT_LENGTH = 5000` - OCRテキスト最大長
 
 ## macOS権限要件
 - **画面収録**: worklog, ocr_tool
