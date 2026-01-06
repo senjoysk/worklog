@@ -18,6 +18,12 @@ macOSで作業ログを自動記録し、LLMで日報を生成するツール。
   - 作業ごとの合計時間を集計
   - **Slack自動投稿**: 設定すればプライベートチャンネルに自動投稿
 
+- **週次実行**: 金曜18時に週報を自動生成
+  - 月〜金の作業サマリー
+  - 学習・調査メモ
+  - 振り返り
+  - 来週の準備事項
+
 - **メニューバーアプリ**: サービスの状態管理
   - メニューバーにアイコン表示（●実行中 / ○停止中）
   - キャプチャ・日報生成サービスの停止/再開
@@ -144,6 +150,9 @@ chmod +x scripts/install.sh scripts/uninstall.sh
 
 # 日報を再生成（スクリプト使用）
 ./scripts/regenerate-report.sh 2025-01-15
+
+# 週報を生成（指定日を含む週）
+./dist/worklog-weekly 2025-01-15
 ```
 
 ### サービスの管理
@@ -195,22 +204,26 @@ worklog/
 ├── src/
 │   ├── main.py           # キャプチャスクリプト（ソース）
 │   ├── daily_report.py   # 日報生成スクリプト（ソース）
+│   ├── weekly_report.py  # 週報生成スクリプト（ソース）
 │   ├── menubar_app.py    # メニューバーアプリ（ソース）
 │   ├── window_info.py    # ウィンドウ情報取得
 │   └── ocr_tool.swift    # Vision Framework OCR（ソース）
 ├── dist/                 # ビルド成果物（Git管理外）
 │   ├── worklog           # キャプチャ用バイナリ
 │   ├── worklog-daily     # 日報生成用バイナリ
+│   ├── worklog-weekly    # 週報生成用バイナリ
 │   ├── worklog-menubar.app  # メニューバーアプリ
 │   └── ocr_tool          # OCR用バイナリ
 ├── logs/
 │   └── YYYY-MM-DD.jsonl  # 日付ごとのログ
 ├── reports/
-│   └── YYYY-MM-DD.md     # 生成された日報
+│   ├── YYYY-MM-DD.md     # 生成された日報
+│   └── YYYY-WXX.md       # 生成された週報
 ├── tmp/                  # 一時ファイル（スクリーンショット等）
 ├── launchd/
 │   ├── com.user.worklog.plist        # 毎分実行用
 │   ├── com.user.worklog.daily.plist  # 日次実行用
+│   ├── com.user.worklog.weekly.plist # 週次実行用（金曜18時）
 │   └── com.user.worklog.menubar.plist  # メニューバーアプリ自動起動用
 ├── scripts/
 │   ├── build.sh          # 全バイナリのビルド

@@ -44,6 +44,9 @@ pyinstaller -y --onefile --name worklog-daily --distpath dist --workpath build -
 echo "worklog-menubar をビルド中..."
 pyinstaller -y --onefile --windowed --name worklog-menubar --distpath dist --workpath build --specpath build src/menubar_app.py
 
+echo "worklog-weekly をビルド中..."
+pyinstaller -y --onefile --name worklog-weekly --distpath dist --workpath build --specpath build src/weekly_report.py
+
 # 5. コード署名（画面収録権限維持のため）
 echo "コード署名中..."
 codesign --force --sign - --identifier "com.user.worklog" dist/worklog

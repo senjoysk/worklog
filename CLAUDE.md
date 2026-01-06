@@ -45,8 +45,9 @@ open dist/worklog-menubar.app
 ### データフロー
 1. **main.py** (毎分実行): アイドル/ロック検出 → ウィンドウ情報取得 → スクリーンショット → OCR → JSONL保存
    - 5分以上アイドル or 画面ロック中はスキップ
-2. **daily_report.py** (日次実行): JSONL読み込み → 解析 → Gemini API → Markdown保存
-3. **menubar_app.py**: launchdサービスの状態監視・制御UI
+2. **daily_report.py** (日次実行): JSONL読み込み → 解析 → Gemini API → Markdown保存 → Slack投稿
+3. **weekly_report.py** (週次実行): 月〜金のJSONL読み込み → 週次解析 → Gemini API → Markdown保存 → Slack投稿
+4. **menubar_app.py**: launchdサービスの状態監視・制御UI
 
 ### コンポーネント依存関係
 ```
@@ -72,6 +73,7 @@ menubar_app.py
 ### launchdサービス
 - `com.user.worklog` - 毎分実行（StartInterval: 60）
 - `com.user.worklog.daily` - 毎日00:05実行（StartCalendarInterval）
+- `com.user.worklog.weekly` - 毎週金曜18:00実行（StartCalendarInterval）
 - `com.user.worklog.menubar` - ログイン時起動（RunAtLoad）
 
 ## 設定値（main.py）
