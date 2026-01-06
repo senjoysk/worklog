@@ -16,6 +16,7 @@ macOSで作業ログを自動記録し、LLMで日報を生成するツール。
   - Vertex AI Gemini 2.5 Flash による解析
   - Markdown 形式で保存
   - 作業ごとの合計時間を集計
+  - **Slack自動投稿**: 設定すればプライベートチャンネルに自動投稿
 
 - **メニューバーアプリ**: サービスの状態管理
   - メニューバーにアイコン表示（●実行中 / ○停止中）
@@ -59,9 +60,24 @@ GCP_PROJECT_ID=your-project-id
 GCP_LOCATION=asia-northeast1
 GCP_CREDENTIALS_JSON={"type":"service_account",...}  # JSONキーの内容をペースト
 GEMINI_MODEL=gemini-2.5-flash-preview-05-20
+
+# Slack投稿（オプション）
+SLACK_BOT_TOKEN=xoxb-your-bot-token
+SLACK_CHANNEL_ID=C0123456789
 ```
 
-### 3. ビルド
+### 3. Slack連携の設定（オプション）
+
+日報をSlackに自動投稿する場合:
+
+1. [Slack App](https://api.slack.com/apps) を作成
+2. **OAuth & Permissions** で `chat:write` スコープを追加
+3. ワークスペースにインストールして **Bot User OAuth Token** を取得
+4. プライベートチャンネルを作成し、Botを招待（`/invite @your-bot`）
+5. チャンネルIDを取得（チャンネル名を右クリック → 「リンクをコピー」→ 末尾のID）
+6. `.env` に `SLACK_BOT_TOKEN` と `SLACK_CHANNEL_ID` を設定
+
+### 4. ビルド
 
 ```bash
 # 依存関係のインストール
@@ -91,14 +107,14 @@ codesign --force --sign - --identifier "com.user.worklog.ocr" dist/ocr_tool
 
 </details>
 
-### 4. インストール
+### 5. インストール
 
 ```bash
 chmod +x scripts/install.sh scripts/uninstall.sh
 ./scripts/install.sh
 ```
 
-### 5. macOS権限の設定
+### 6. macOS権限の設定
 
 初回実行時に以下の権限が必要です:
 

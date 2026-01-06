@@ -228,6 +228,38 @@ def save_report(content: str, date: str):
     print(f"Report saved: {report_file}")
 
 
+def post_to_slack(content: str, date: str) -> bool:
+    """日報をSlackに投稿"""
+    slack_token = os.getenv('SLACK_BOT_TOKEN')
+    channel_id = os.getenv('SLACK_CHANNEL_ID')
+
+    if not slack_token or not channel_id:
+        print("Slack settings not configured, skipping Slack post")
+        return False
+
+    try:
+        from slack_sdk import WebClient
+        from slack_sdk.errors import SlackApiError
+
+        client = WebClient(token=slack_token)
+
+        response = client.chat_postMessage(
+            channel=channel_id,
+            text=f"📋 *{date} 日報*\n\n{content}",
+            mrkdwn=True
+        )
+
+        print(f"Posted to Slack: {response['ts']}")
+        return True
+
+    except SlackApiError as e:
+        print(f"Slack API error: {e.response['error']}")
+        return False
+    except Exception as e:
+        print(f"Failed to post to Slack: {e}")
+        return False
+
+
 def main():
     """メイン処理"""
     # 前日の日付を取得（引数で指定も可能）
@@ -263,6 +295,9 @@ def main():
 
     # 保存
     save_report(report, target_date)
+
+    # Slackに投稿（設定されている場合）
+    post_to_slack(report, target_date)
 
     print("Done!")
     return 0
