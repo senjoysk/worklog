@@ -228,6 +228,60 @@ def save_report(content: str, date: str):
     print(f"Report saved: {report_file}")
 
 
+def markdown_to_slack(text: str) -> str:
+    """MarkdownをSlack mrkdwn形式に変換"""
+    import re
+    lines = text.split('\n')
+    result = []
+    in_table = False
+    table_rows = []
+
+    for line in lines:
+        # テーブル行を検出
+        if '|' in line and line.strip().startswith('|'):
+            in_table = True
+            # ヘッダー区切り行(|---|---|)はスキップ
+            if re.match(r'^\|[\s\-:]+\|', line):
+                continue
+            # テーブルセルを抽出
+            cells = [c.strip() for c in line.split('|')[1:-1]]
+            if cells:
+                table_rows.append(cells)
+            continue
+        elif in_table:
+            # テーブル終了、リスト形式に変換
+            if table_rows:
+                headers = table_rows[0] if table_rows else []
+                for row in table_rows[1:]:
+                    if len(row) >= len(headers):
+                        parts = [f"{headers[i]}: {row[i]}" for i in range(len(headers)) if row[i]]
+                        result.append(f"• {' / '.join(parts)}")
+                table_rows = []
+            in_table = False
+
+        # 見出し → 太字
+        if line.startswith('# '):
+            result.append(f"\n*{line[2:].strip()}*")
+        elif line.startswith('## '):
+            result.append(f"\n*{line[3:].strip()}*")
+        elif line.startswith('### '):
+            result.append(f"*{line[4:].strip()}*")
+        else:
+            # **bold** → *bold*
+            converted = re.sub(r'\*\*(.+?)\*\*', r'*\1*', line)
+            result.append(converted)
+
+    # 残りのテーブル行を処理
+    if table_rows:
+        headers = table_rows[0] if table_rows else []
+        for row in table_rows[1:]:
+            if len(row) >= len(headers):
+                parts = [f"{headers[i]}: {row[i]}" for i in range(len(headers)) if row[i]]
+                result.append(f"• {' / '.join(parts)}")
+
+    return '\n'.join(result)
+
+
 def post_to_slack(content: str, date: str) -> bool:
     """日報をSlackに投稿"""
     slack_token = os.getenv('SLACK_BOT_TOKEN')
@@ -243,9 +297,10 @@ def post_to_slack(content: str, date: str) -> bool:
 
         client = WebClient(token=slack_token)
 
+        slack_content = markdown_to_slack(content)
         response = client.chat_postMessage(
             channel=channel_id,
-            text=f"📋 *{date} 日報*\n\n{content}",
+            text=f"📋 *{date} 日報*\n{slack_content}",
             mrkdwn=True
         )
 
