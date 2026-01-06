@@ -80,18 +80,25 @@ SLACK_CHANNEL_ID=C0123456789
 ### 4. ビルド
 
 ```bash
-# 依存関係のインストール
-pip3 install -r requirements.txt
-pip3 install pyinstaller rumps
-
-# ビルドスクリプトで全バイナリをビルド
+# ビルドスクリプトで全バイナリをビルド（venv作成・依存関係インストールも自動）
 ./scripts/build.sh
 ```
+
+ビルドスクリプトは自動的に:
+- `.venv/` にPython仮想環境を作成
+- `requirements.txt` の依存関係をインストール
+- PyInstallerでバイナリをビルド
 
 <details>
 <summary>手動でビルドする場合</summary>
 
 ```bash
+# venv作成・有効化
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install pyinstaller
+
 # Swiftバイナリをビルド
 swiftc -O -o dist/ocr_tool src/ocr_tool.swift
 

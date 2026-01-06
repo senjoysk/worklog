@@ -5,31 +5,46 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+VENV_DIR="$PROJECT_DIR/.venv"
 
 cd "$PROJECT_DIR"
 
 echo "=== worklog ビルド ==="
 echo ""
 
-# 1. ビルドディレクトリ準備
+# 1. venv作成・有効化
+if [ ! -d "$VENV_DIR" ]; then
+    echo "venv を作成中..."
+    python3 -m venv "$VENV_DIR"
+fi
+
+echo "venv を有効化中..."
+source "$VENV_DIR/bin/activate"
+
+echo "依存関係をインストール中..."
+pip install -q --upgrade pip
+pip install -q -r requirements.txt
+pip install -q pyinstaller
+
+# 2. ビルドディレクトリ準備
 echo "ビルドディレクトリを準備中..."
 mkdir -p dist build
 
-# 2. Swiftバイナリをビルド
+# 3. Swiftバイナリをビルド
 echo "ocr_tool をビルド中..."
 swiftc -O -o dist/ocr_tool src/ocr_tool.swift
 
-# 3. Pythonバイナリをビルド
+# 4. Pythonバイナリをビルド
 echo "worklog をビルド中..."
-pyinstaller --onefile --name worklog --distpath dist --workpath build --specpath build --paths src --hidden-import window_info src/main.py
+pyinstaller -y --onefile --name worklog --distpath dist --workpath build --specpath build --paths src --hidden-import window_info src/main.py
 
 echo "worklog-daily をビルド中..."
-pyinstaller --onefile --name worklog-daily --distpath dist --workpath build --specpath build src/daily_report.py
+pyinstaller -y --onefile --name worklog-daily --distpath dist --workpath build --specpath build src/daily_report.py
 
 echo "worklog-menubar をビルド中..."
-pyinstaller --onefile --windowed --name worklog-menubar --distpath dist --workpath build --specpath build src/menubar_app.py
+pyinstaller -y --onefile --windowed --name worklog-menubar --distpath dist --workpath build --specpath build src/menubar_app.py
 
-# 4. コード署名（画面収録権限維持のため）
+# 5. コード署名（画面収録権限維持のため）
 echo "コード署名中..."
 codesign --force --sign - --identifier "com.user.worklog" dist/worklog
 codesign --force --sign - --identifier "com.user.worklog.ocr" dist/ocr_tool
