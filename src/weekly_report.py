@@ -59,8 +59,9 @@ def get_week_dates(target_date: datetime) -> list:
 
 
 def get_week_number(target_date: datetime) -> str:
-    """週番号を取得 (例: 2026-W01)"""
-    return target_date.strftime('%Y-W%W')
+    """ISO週番号を取得 (例: 2026-W01)"""
+    iso_cal = target_date.isocalendar()
+    return f"{iso_cal[0]}-W{iso_cal[1]:02d}"
 
 
 def load_log_file(date: str) -> list:
