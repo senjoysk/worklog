@@ -7,6 +7,7 @@ worklog - 日報生成スクリプト
 import os
 import sys
 import json
+import fcntl
 from datetime import datetime, timedelta
 from pathlib import Path
 from collections import defaultdict
@@ -229,18 +230,25 @@ def save_report(content: str, date: str):
     print(f"Report saved: {report_file}")
 
 
-def is_slack_posted(date: str) -> bool:
-    """指定日付がSlackに投稿済みかチェック"""
-    if not SLACK_POSTED_FILE.exists():
-        return False
-    return date in SLACK_POSTED_FILE.read_text().splitlines()
-
-
-def mark_slack_posted(date: str):
-    """Slack投稿済みとしてマーク"""
+def check_and_mark_slack_posted(identifier: str) -> bool:
+    """
+    アトミックにチェック＆マーク（投稿可能ならTrue、既投稿ならFalse）
+    ファイルロックで競合状態を防止
+    """
     SLACK_POSTED_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(SLACK_POSTED_FILE, 'a') as f:
-        f.write(f"{date}\n")
+
+    with open(SLACK_POSTED_FILE, 'a+') as f:
+        fcntl.flock(f, fcntl.LOCK_EX)  # 排他ロック
+        try:
+            f.seek(0)
+            posted = f.read().splitlines()
+            if identifier in posted:
+                return False  # 既に投稿済み
+            f.write(f"{identifier}\n")
+            f.flush()
+            return True  # マーク成功、投稿可能
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 
 def markdown_to_slack(text: str) -> str:
@@ -299,8 +307,8 @@ def markdown_to_slack(text: str) -> str:
 
 def post_to_slack(content: str, date: str) -> bool:
     """日報をSlackに投稿"""
-    # 既に投稿済みならスキップ
-    if is_slack_posted(date):
+    # アトミックにチェック＆マーク（競合状態を防止）
+    if not check_and_mark_slack_posted(date):
         print(f"Already posted to Slack for {date}, skipping")
         return False
 
@@ -324,8 +332,6 @@ def post_to_slack(content: str, date: str) -> bool:
             mrkdwn=True
         )
 
-        # 投稿成功したら記録
-        mark_slack_posted(date)
         print(f"Posted to Slack: {response['ts']}")
         return True
 
