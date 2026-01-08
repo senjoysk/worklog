@@ -93,7 +93,7 @@ else:
             text=True,
             timeout=5
         )
-        return 'locked' in result.stdout
+        return result.stdout.strip() == 'locked'
     except Exception:
         return False
 

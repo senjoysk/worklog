@@ -44,6 +44,7 @@ PROJECT_ROOT = get_project_root()
 LOGS_DIR = PROJECT_ROOT / 'logs'
 REPORTS_DIR = PROJECT_ROOT / 'reports'
 DAILY_BINARY = PROJECT_ROOT / 'dist' / 'worklog-daily'
+WEEKLY_BINARY = PROJECT_ROOT / 'dist' / 'worklog-weekly'
 
 
 def needs_daily_report(target_date: str) -> bool:
@@ -56,6 +57,31 @@ def has_log_for_date(target_date: str) -> bool:
     """指定日のログファイルが存在するかチェック"""
     log_file = LOGS_DIR / f'{target_date}.jsonl'
     return log_file.exists()
+
+
+def get_week_number(target_date: datetime) -> str:
+    """ISO週番号を取得（例: 2026-W02）"""
+    iso_cal = target_date.isocalendar()
+    return f"{iso_cal[0]}-W{iso_cal[1]:02d}"
+
+
+def get_week_dates(target_date: datetime) -> list:
+    """対象日を含む週の月〜金の日付リストを取得"""
+    weekday = target_date.weekday()
+    monday = target_date - timedelta(days=weekday)
+    return [(monday + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(5)]
+
+
+def needs_weekly_report(week_number: str) -> bool:
+    """指定週の週報生成が必要かチェック"""
+    report_file = REPORTS_DIR / f'{week_number}.md'
+    return not report_file.exists()
+
+
+def has_logs_for_week(target_date: datetime) -> bool:
+    """指定週のログファイルが少なくとも1つ存在するかチェック"""
+    dates = get_week_dates(target_date)
+    return any(has_log_for_date(d) for d in dates)
 
 
 class WakeObserver(NSObject):
@@ -106,8 +132,12 @@ class WorklogMenubarApp(rumps.App):
         # 5分ごとに日報チェック（スリープ復帰後の確実な実行のため）
         rumps.Timer(self._check_and_generate_daily_report, 300).start()
 
-        # 起動時にも日報チェック（スリープ中に起動しなかった場合の対応）
+        # 1時間ごとに週報チェック
+        rumps.Timer(self._check_and_generate_weekly_report, 3600).start()
+
+        # 起動時にも日報・週報チェック（スリープ中に起動しなかった場合の対応）
         self._check_and_generate_daily_report()
+        self._check_and_generate_weekly_report()
 
     def _setup_wake_observer(self):
         """スリープ復帰の監視を設定"""
@@ -128,6 +158,7 @@ class WorklogMenubarApp(rumps.App):
         # 少し待ってからチェック（ネットワーク接続の安定を待つ）
         # threading.Timer はワンショット（1回だけ実行）
         threading.Timer(30, self._check_and_generate_daily_report).start()
+        threading.Timer(60, self._check_and_generate_weekly_report).start()
 
     def _check_and_generate_daily_report(self, _=None):
         """欠けている日報があれば生成する（過去10日分をチェック）"""
@@ -165,6 +196,45 @@ class WorklogMenubarApp(rumps.App):
         except Exception as e:
             print(f"Failed to start daily report: {e}")
 
+    def _check_and_generate_weekly_report(self, _=None):
+        """欠けている週報があれば生成する（過去4週分をチェック）"""
+        today = datetime.now()
+
+        for i in range(1, 5):  # 1〜4週前
+            # i週前の金曜日を基準にする
+            target = today - timedelta(weeks=i)
+            week_number = get_week_number(target)
+
+            if not has_logs_for_week(target):
+                continue
+
+            if not needs_weekly_report(week_number):
+                continue
+
+            # 週報生成を実行（1回に1つだけ、API負荷軽減）
+            self._run_weekly_report(target)
+            return
+
+    def _run_weekly_report(self, target_date: datetime):
+        """週報生成を実行"""
+        if not WEEKLY_BINARY.exists():
+            print(f"Weekly binary not found: {WEEKLY_BINARY}")
+            return
+
+        date_str = target_date.strftime('%Y-%m-%d')
+        try:
+            env = os.environ.copy()
+            env['WORKLOG_ROOT'] = str(PROJECT_ROOT)
+            subprocess.Popen(
+                [str(WEEKLY_BINARY), date_str],
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            print(f"Started weekly report generation for {get_week_number(target_date)}")
+        except Exception as e:
+            print(f"Failed to start weekly report: {e}")
+
     def is_running(self, service_id: str) -> bool:
         """サービスが実行中かどうかを確認"""
         result = subprocess.run(
@@ -172,7 +242,11 @@ class WorklogMenubarApp(rumps.App):
             capture_output=True,
             text=True
         )
-        return service_id in result.stdout
+        # 行末で完全一致をチェック（部分一致を防ぐ）
+        for line in result.stdout.splitlines():
+            if line.endswith(service_id):
+                return True
+        return False
 
     def update_status(self, _):
         """メニューの状態を更新"""

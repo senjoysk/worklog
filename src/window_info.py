@@ -26,20 +26,17 @@ def get_active_window_info() -> Optional[WindowInfo]:
     set appName to short name of frontApp
 
     set windowTitle to ""
-    set windowBounds to ""
 
     try
         tell application "System Events"
             tell (first process whose frontmost is true)
                 set windowTitle to name of front window
-                set windowBounds to properties of front window
             end tell
         end tell
     end try
 
-    -- JSON形式で出力
-    set jsonOutput to "{\\"app_name\\": \\"" & appName & "\\", \\"window_title\\": \\"" & windowTitle & "\\"}"
-    return jsonOutput
+    -- 改行区切りで出力（Python側でJSONに変換）
+    return appName & linefeed & windowTitle
     '''
 
     try:
@@ -54,14 +51,16 @@ def get_active_window_info() -> Optional[WindowInfo]:
             return None
 
         output = result.stdout.strip()
-        data = json.loads(output)
+        lines = output.split('\n', 1)  # 最大2分割
+        app_name = lines[0] if len(lines) > 0 else ''
+        window_title = lines[1] if len(lines) > 1 else ''
 
         return WindowInfo(
-            app_name=data.get('app_name', ''),
-            window_title=data.get('window_title', '')
+            app_name=app_name,
+            window_title=window_title
         )
 
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception) as e:
+    except (subprocess.TimeoutExpired, Exception) as e:
         print(f"Error getting window info: {e}")
         return None
 
