@@ -30,6 +30,7 @@ load_dotenv(PROJECT_ROOT / '.env')
 
 LOGS_DIR = PROJECT_ROOT / 'logs'
 REPORTS_DIR = PROJECT_ROOT / 'reports'
+SLACK_POSTED_FILE = REPORTS_DIR / '.slack_posted'
 
 
 def get_credentials():
@@ -314,8 +315,27 @@ def markdown_to_slack(text: str) -> str:
     return '\n'.join(result)
 
 
+def is_slack_posted(identifier: str) -> bool:
+    """指定識別子がSlackに投稿済みかチェック"""
+    if not SLACK_POSTED_FILE.exists():
+        return False
+    return identifier in SLACK_POSTED_FILE.read_text().splitlines()
+
+
+def mark_slack_posted(identifier: str):
+    """Slack投稿済みとしてマーク"""
+    SLACK_POSTED_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(SLACK_POSTED_FILE, 'a') as f:
+        f.write(f"{identifier}\n")
+
+
 def post_to_slack(content: str, week_number: str) -> bool:
     """週報をSlackに投稿"""
+    # 既に投稿済みならスキップ
+    if is_slack_posted(week_number):
+        print(f"Already posted to Slack for {week_number}, skipping")
+        return False
+
     slack_token = os.getenv('SLACK_BOT_TOKEN')
     channel_id = os.getenv('SLACK_CHANNEL_ID')
 
@@ -336,6 +356,8 @@ def post_to_slack(content: str, week_number: str) -> bool:
             mrkdwn=True
         )
 
+        # 投稿成功したら記録
+        mark_slack_posted(week_number)
         print(f"Posted to Slack: {response['ts']}")
         return True
 

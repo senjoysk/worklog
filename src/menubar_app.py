@@ -7,6 +7,7 @@ worklog - メニューバーアプリ
 import os
 import sys
 import subprocess
+import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -125,7 +126,8 @@ class WorklogMenubarApp(rumps.App):
     def _on_wake_from_sleep(self):
         """スリープから復帰したときの処理"""
         # 少し待ってからチェック（ネットワーク接続の安定を待つ）
-        rumps.Timer(self._check_and_generate_daily_report, 30).start()
+        # threading.Timer はワンショット（1回だけ実行）
+        threading.Timer(30, self._check_and_generate_daily_report).start()
 
     def _check_and_generate_daily_report(self, _=None):
         """欠けている日報があれば生成する（過去10日分をチェック）"""
