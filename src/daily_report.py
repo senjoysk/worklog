@@ -4,6 +4,7 @@ worklog - 日報生成スクリプト
 前日のログを解析してLLMで日報を生成する
 """
 
+import argparse
 import os
 import sys
 import json
@@ -219,10 +220,11 @@ def generate_report_with_llm(summary: str, date: str) -> str:
     return response.text
 
 
-def save_report(content: str, date: str):
+def save_report(content: str, date: str, preliminary: bool = False):
     """日報をMarkdownファイルとして保存"""
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    report_file = REPORTS_DIR / f'{date}.md'
+    suffix = '-preliminary' if preliminary else ''
+    report_file = REPORTS_DIR / f'{date}{suffix}.md'
 
     with open(report_file, 'w', encoding='utf-8') as f:
         f.write(content)
@@ -305,11 +307,14 @@ def markdown_to_slack(text: str) -> str:
     return '\n'.join(result)
 
 
-def post_to_slack(content: str, date: str) -> bool:
+def post_to_slack(content: str, date: str, preliminary: bool = False) -> bool:
     """日報をSlackに投稿"""
+    # 仮日報と正式日報で別のidentifierを使う
+    identifier = f"{date}-preliminary" if preliminary else date
+
     # アトミックにチェック＆マーク（競合状態を防止）
-    if not check_and_mark_slack_posted(date):
-        print(f"Already posted to Slack for {date}, skipping")
+    if not check_and_mark_slack_posted(identifier):
+        print(f"Already posted to Slack for {identifier}, skipping")
         return False
 
     slack_token = os.getenv('SLACK_BOT_TOKEN')
@@ -326,9 +331,16 @@ def post_to_slack(content: str, date: str) -> bool:
         client = WebClient(token=slack_token)
 
         slack_content = markdown_to_slack(content)
+        
+        # 仮日報と正式日報でタイトルを変える
+        if preliminary:
+            title = f"📝 *{date} 日報（18:00時点）*"
+        else:
+            title = f"📋 *{date} 日報*"
+        
         response = client.chat_postMessage(
             channel=channel_id,
-            text=f"📋 *{date} 日報*\n{slack_content}",
+            text=f"{title}\n{slack_content}",
             mrkdwn=True
         )
 
@@ -345,14 +357,25 @@ def post_to_slack(content: str, date: str) -> bool:
 
 def main():
     """メイン処理"""
-    # 前日の日付を取得（引数で指定も可能）
-    if len(sys.argv) > 1:
-        target_date = sys.argv[1]
+    parser = argparse.ArgumentParser(description='日報を生成する')
+    parser.add_argument('date', nargs='?', help='対象日付 (YYYY-MM-DD形式、省略時は前日)')
+    parser.add_argument('--preliminary', action='store_true', 
+                        help='仮日報として生成（当日18:30時点用）')
+    args = parser.parse_args()
+
+    # 対象日付を決定
+    if args.date:
+        target_date = args.date
+    elif args.preliminary:
+        # 仮日報は当日
+        target_date = datetime.now().strftime('%Y-%m-%d')
     else:
+        # 正式日報は前日
         yesterday = datetime.now() - timedelta(days=1)
         target_date = yesterday.strftime('%Y-%m-%d')
 
-    print(f"Generating daily report for: {target_date}")
+    report_type = "preliminary report" if args.preliminary else "daily report"
+    print(f"Generating {report_type} for: {target_date}")
 
     # ログを読み込み
     entries = load_log_file(target_date)
@@ -377,10 +400,10 @@ def main():
         return 1
 
     # 保存
-    save_report(report, target_date)
+    save_report(report, target_date, preliminary=args.preliminary)
 
     # Slackに投稿（設定されている場合）
-    post_to_slack(report, target_date)
+    post_to_slack(report, target_date, preliminary=args.preliminary)
 
     print("Done!")
     return 0

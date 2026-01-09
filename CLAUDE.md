@@ -36,6 +36,9 @@ pip3 install pyinstaller rumps
 # 特定日付の日報を生成
 ./dist/worklog-daily 2025-01-15
 
+# 当日の仮日報を生成（18:00時点用）
+./dist/worklog-daily --preliminary
+
 # メニューバーアプリ起動
 open dist/worklog-menubar.app
 ```
@@ -72,7 +75,8 @@ menubar_app.py
 
 ### launchdサービス
 - `com.user.worklog` - 毎分実行（StartInterval: 60）
-- `com.user.worklog.daily` - 毎日00:05実行（StartCalendarInterval）
+- `com.user.worklog.preliminary` - 毎日18:00実行、当日の仮日報を生成・Slack投稿
+- `com.user.worklog.daily` - 毎日00:05実行、前日の正式日報を生成・Slack投稿
 - `com.user.worklog.weekly` - 毎週金曜18:00実行（StartCalendarInterval）
 - `com.user.worklog.menubar` - ログイン時起動（RunAtLoad）
 
